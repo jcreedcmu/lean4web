@@ -52,7 +52,10 @@
     "react-dom": "^19.0.0",
     "react-split": "^2.0.14",
     "vscode-ws-jsonrpc": "^3.4.0",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "y-monaco": "^0.1.6",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
   },
   "devDependencies": {
     "@codingame/esbuild-import-meta-url-plugin": "^1.0.3",
@@ -70,7 +73,7 @@
     "vite-plugin-svgr": "^4.3.0",
     "wait-on": "^8.0.2"
   },
-  "engines" : {
-    "node" : ">=22.0.0"
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

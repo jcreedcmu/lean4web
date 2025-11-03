@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Split from 'react-split'
 import * as monaco from 'monaco-editor'
 import CodeMirror, { EditorView } from '@uiw/react-codemirror'
@@ -13,6 +13,9 @@ import LeanLogo from './assets/logo.svg'
 import defaultSettings, { IPreferencesContext, lightThemes, preferenceParams } from './config/settings'
 import { Menu } from './Navigation'
 import { PreferencesContext } from './Popups/Settings'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+import { MonacoBinding } from 'y-monaco'
 import { Entries } from './utils/Entries'
 import { save } from './utils/SaveToFile'
 import { fixedEncodeURIComponent, formatArgs, lookupUrl, parseArgs } from './utils/UrlParsing'
@@ -27,7 +30,14 @@ function isBrowserDefaultDark() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
+console.log(import.meta.env);
+const yjs_websocket_service = import.meta.env.VITE_YJS_WEBSOCKET_SERVICE;
+
 function App() {
+  const ydoc = useMemo(() => new Y.Doc(), [])
+  const [provider, setProvider] = useState<WebsocketProvider | null>(null)
+  const [binding, setBinding] = useState<MonacoBinding | null>(null)
+
   const editorRef = useRef<HTMLDivElement>(null)
   const infoviewRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<boolean | null>(false)
@@ -35,6 +45,30 @@ function App() {
   const [leanMonaco, setLeanMonaco] = useState<LeanMonaco>()
   const [loaded, setLoaded] = useState<boolean>(false)
   const [preferences, setPreferences] = useState<IPreferencesContext>(defaultSettings)
+
+  useEffect(() => {
+    console.log(`In App useEffect, trying to connect to yjs websocket service at ${yjs_websocket_service}...`);
+    const provider = new WebsocketProvider(yjs_websocket_service, 'myroom', ydoc)
+    setProvider(provider)
+    return () => {
+      provider?.destroy()
+      ydoc.destroy()
+    }
+  }, [ydoc])
+
+  // this effect manages the lifetime of the editor binding
+  useEffect(() => {
+    if (provider == null || editor == null) {
+      return
+    }
+    console.log('reached', provider)
+    const binding = new MonacoBinding(ydoc.getText(), editor.getModel()!, new Set([editor]), provider?.awareness)
+    setBinding(binding)
+    return () => {
+      binding.destroy()
+    }
+  }, [ydoc, provider, editor])
+
   const { width } = useWindowDimensions()
 
   // Lean4monaco options
