@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Split from 'react-split'
 import * as monaco from 'monaco-editor'
 import CodeMirror, { EditorView } from '@uiw/react-codemirror'
@@ -13,6 +13,9 @@ import LeanLogo from './assets/logo.svg'
 import defaultSettings, { IPreferencesContext, lightThemes, preferenceParams } from './config/settings'
 import { Menu } from './Navigation'
 import { PreferencesContext } from './Popups/Settings'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+import { MonacoBinding } from 'y-monaco'
 import { Entries } from './utils/Entries'
 import { save } from './utils/SaveToFile'
 import { fixedEncodeURIComponent, formatArgs, lookupUrl, parseArgs } from './utils/UrlParsing'
@@ -28,6 +31,10 @@ function isBrowserDefaultDark() {
 }
 
 function App() {
+  const ydoc = useMemo(() => new Y.Doc(), [])
+  const [provider, setProvider] = useState<WebsocketProvider | null>(null)
+  const [binding, setBinding] = useState<MonacoBinding | null>(null)
+
   const editorRef = useRef<HTMLDivElement>(null)
   const infoviewRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<boolean | null>(false)
@@ -35,6 +42,30 @@ function App() {
   const [leanMonaco, setLeanMonaco] = useState<LeanMonaco>()
   const [loaded, setLoaded] = useState<boolean>(false)
   const [preferences, setPreferences] = useState<IPreferencesContext>(defaultSettings)
+
+  useEffect(() => {
+    console.log('in vscode useffect setting up websocket provider');
+    const provider = new WebsocketProvider('ws://192.168.1.69:3000/ws', 'myroom', ydoc)
+    setProvider(provider)
+    return () => {
+      provider?.destroy()
+      ydoc.destroy()
+    }
+  }, [ydoc])
+
+  // this effect manages the lifetime of the editor binding
+  useEffect(() => {
+    if (provider == null || editor == null) {
+      return
+    }
+    console.log('reached', provider)
+    const binding = new MonacoBinding(ydoc.getText(), editor.getModel()!, new Set([editor]), provider?.awareness)
+    setBinding(binding)
+    return () => {
+      binding.destroy()
+    }
+  }, [ydoc, provider, editor])
+
   const { width } = useWindowDimensions()
 
   // Lean4monaco options
@@ -56,7 +87,7 @@ function App() {
   const [codeFromUrl, setCodeFromUrl] = useState<string>('')
 
   /** Monaco editor requires the code to be set manually. */
-  function setContent (code: string) {
+  function setContent(code: string) {
     editor?.getModel()?.setValue(code)
     setCode(code)
   }
@@ -74,7 +105,7 @@ function App() {
       setContent(_code)
     }
 
-    if (args.url) {setUrl(lookupUrl(decodeURIComponent(args.url)))}
+    if (args.url) { setUrl(lookupUrl(decodeURIComponent(args.url))) }
 
     // if no project provided, use default
     let project = args.project || 'MathlibDemo'
@@ -154,7 +185,7 @@ function App() {
       window.location.host + "/websocket/" + project
     console.log(`[Lean4web] Socket url is ${socketUrl}`)
     var _options: LeanMonacoOptions = {
-      websocket: {url: socketUrl},
+      websocket: { url: socketUrl },
       // Restrict monaco's extend (e.g. context menu) to the editor itself
       htmlElement: editorRef.current ?? undefined,
       vscode: {
@@ -168,7 +199,7 @@ function App() {
         "editor.lightbulb.enabled": "on",
         "editor.wordWrap": preferences.wordWrap ? "on" : "off",
         "editor.wrappingStrategy": "advanced",
-        "editor.semanticHighlighting.enabled": true,
+        "editor.semanticHighlighting.enabled": false,
         "editor.acceptSuggestionOnEnter": preferences.acceptSuggestionOnEnter ? "on" : "off",
         "lean4.input.eagerReplacementEnabled": true,
         "lean4.infoview.showGoalNames": preferences.showGoalNames,
@@ -190,7 +221,7 @@ function App() {
     var leanMonacoEditor = new LeanMonacoEditor()
 
     _leanMonaco.setInfoviewElement(infoviewRef.current!)
-    ;(async () => {
+      ; (async () => {
         await _leanMonaco.start(options)
         await leanMonacoEditor.start(editorRef.current!, path.join(project, `${project}.lean`), code)
 
@@ -240,28 +271,28 @@ function App() {
         if (editorService) {
           const openEditorBase = editorService.openCodeEditor.bind(editorService)
           editorService.openCodeEditor = async (input: any, source: any) => {
-              const result = await openEditorBase(input, source)
-              if (result === null) {
-                // found this out with `console.debug(input)`:
-                // `resource.path` is the file go-to-def tries to open on the disk
-                // we try to create a doc-gen link from that. Could not extract the
-                // (fully-qualified) decalaration name... with that one could
-                // call `...${path}.html#${declaration}`
-                let path = input.resource.path.replace(
-                  new RegExp("^.*/(?:lean|\.lake/packages/[^/]+/)"), ""
-                ).replace(
-                  new RegExp("\.lean$"), ""
-                )
+            const result = await openEditorBase(input, source)
+            if (result === null) {
+              // found this out with `console.debug(input)`:
+              // `resource.path` is the file go-to-def tries to open on the disk
+              // we try to create a doc-gen link from that. Could not extract the
+              // (fully-qualified) decalaration name... with that one could
+              // call `...${path}.html#${declaration}`
+              let path = input.resource.path.replace(
+                new RegExp("^.*/(?:lean|\.lake/packages/[^/]+/)"), ""
+              ).replace(
+                new RegExp("\.lean$"), ""
+              )
 
-                if (window.confirm(`Do you want to open the docs?\n\n${path} (line ${input.options.selection.startLineNumber})`)) {
-                  let newTab = window.open(`https://leanprover-community.github.io/mathlib4_docs/${path}.html`, "_blank")
-                  if (newTab) {
-                    newTab.focus()
-                  }
+              if (window.confirm(`Do you want to open the docs?\n\n${path} (line ${input.options.selection.startLineNumber})`)) {
+                let newTab = window.open(`https://leanprover-community.github.io/mathlib4_docs/${path}.html`, "_blank")
+                if (newTab) {
+                  newTab.focus()
                 }
               }
-              return null
-              // return result // always return the base result
+            }
+            return null
+            // return result // always return the base result
           }
         }
 
@@ -269,7 +300,7 @@ function App() {
         leanMonacoEditor.editor?.onDidChangeModelContent(() => {
           setCode(leanMonacoEditor.editor?.getModel()?.getValue()!)
         })
-    })()
+      })()
     return () => {
       leanMonacoEditor.dispose()
       _leanMonaco.dispose()
@@ -285,15 +316,15 @@ function App() {
     if (!editor || !url) { return }
     console.debug(`[Lean4web] Loading from ${url}`)
     fetch(url)
-    .then((response) => response.text())
-    .then((code) => {
-      setCodeFromUrl(code)
-    })
-    .catch( err => {
-      let errorTxt = `ERROR: ${err.toString()}`
-      console.error(errorTxt)
-      setCodeFromUrl(errorTxt)
-    })
+      .then((response) => response.text())
+      .then((code) => {
+        setCodeFromUrl(code)
+      })
+      .catch(err => {
+        let errorTxt = `ERROR: ${err.toString()}`
+        console.error(errorTxt)
+        setCodeFromUrl(errorTxt)
+      })
   }, [url, editor])
 
   // Sets the editors content to the content from the loaded URL.
@@ -339,12 +370,12 @@ function App() {
       // const encodedCode = fixedEncodeURIComponent(code)
       // console.debug(`[Lean4web] Code length: ${encodedCode.length}, compressed: ${compressed.length}`)
       // if (compressed.length < encodedCode.length) {
-        args = {
-          project: _project,
-          url: null,
-          code: null,
-          codez: compressed
-        }
+      args = {
+        project: _project,
+        url: null,
+        code: null,
+        codez: compressed
+      }
       // } else {
       //   args = {
       //     project: _project,
@@ -402,7 +433,7 @@ function App() {
     }
   }, [handleKeyDown, handleKeyUp])
 
-  return <PreferencesContext.Provider value={{preferences, setPreferences}}>
+  return <PreferencesContext.Provider value={{ preferences, setPreferences }}>
     <div className="app monaco-editor">
       <nav>
         <LeanLogo />
@@ -416,9 +447,9 @@ function App() {
           restart={leanMonaco?.restart}
           codeMirror={codeMirror}
           setCodeMirror={setCodeMirror}
-          />
+        />
       </nav>
-      <Split className={`editor ${ dragging? 'dragging':''}`}
+      <Split className={`editor ${dragging ? 'dragging' : ''}`}
         gutter={(_index, _direction) => {
           const gutter = document.createElement('div')
           gutter.className = `gutter` // no `gutter-${direction}` as it might change
@@ -432,15 +463,16 @@ function App() {
             'margin-left': preferences.mobile ? 0 : `-${gutterSize}px`,
             'margin-top': preferences.mobile ? `-${gutterSize}px` : 0,
             'z-index': 0,
-          }}}
+          }
+        }}
         gutterSize={5}
         onDragStart={() => setDragging(true)} onDragEnd={() => setDragging(false)}
         sizes={preferences.mobile ? [50, 50] : [70, 30]}
         direction={preferences.mobile ? "vertical" : "horizontal"}
-        style={{flexDirection: preferences.mobile ? "column" : "row"}}>
+        style={{ flexDirection: preferences.mobile ? "column" : "row" }}>
         <div className='codeview-wrapper'
-          style={preferences.mobile ? {width : '100%'} : {height: '100%'}} >
-          { codeMirror &&
+          style={preferences.mobile ? { width: '100%' } : { height: '100%' }} >
+          {codeMirror &&
             <CodeMirror
               className="codeview plain"
               value={code}
@@ -453,12 +485,12 @@ function App() {
           <div ref={editorRef} className={`codeview${codeMirror ? ' hidden' : ''}`} />
         </div>
         <div ref={infoviewRef} className="vscode-light infoview"
-          style={preferences.mobile ? {width : '100%'} : {height: '100%'}} >
-            <p className={`editor-support-warning${codeMirror ? '' : ' hidden'}`} >
-              You are in the plain text editor<br /><br />
-              Go back to the Monaco Editor (click <FontAwesomeIcon icon={faCode}/>)
-              for the infoview to update!
-            </p>
+          style={preferences.mobile ? { width: '100%' } : { height: '100%' }} >
+          <p className={`editor-support-warning${codeMirror ? '' : ' hidden'}`} >
+            You are in the plain text editor<br /><br />
+            Go back to the Monaco Editor (click <FontAwesomeIcon icon={faCode} />)
+            for the infoview to update!
+          </p>
         </div>
       </Split>
     </div>
