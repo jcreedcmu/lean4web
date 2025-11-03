@@ -45,7 +45,7 @@ function App() {
 
   useEffect(() => {
     console.log('in vscode useffect setting up websocket provider');
-    const provider = new WebsocketProvider('ws://192.168.1.69:3000/ws', 'myroom', ydoc)
+    const provider = new WebsocketProvider('ws://collab.bovik-labs.org:3000/ws', 'myroom', ydoc)
     setProvider(provider)
     return () => {
       provider?.destroy()
