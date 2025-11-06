@@ -27,7 +27,7 @@ function isBrowserDefaultDark() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-function App() {
+export function App() {
   const editorRef = useRef<HTMLDivElement>(null)
   const infoviewRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<boolean | null>(false)
