@@ -7,7 +7,8 @@
     "server": "server/index.mjs"
   },
   "files": [
-    "client/dist",
+    "client/public",
+    "client/src",
     "server"
   ],
   "scripts": {
