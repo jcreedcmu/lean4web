@@ -69,7 +69,7 @@ function InnerApp() {
     if (provider == null || editor == null) {
       return
     }
-    console.log('reached', provider)
+    console.log('reached editor binding with provider', provider)
     const binding = new MonacoBinding(ydoc.getText(), editor.getModel()!, new Set([editor]), provider?.awareness)
     setBinding(binding)
     return () => {
@@ -452,7 +452,6 @@ function InnerApp() {
         <LeanLogo />
         {authMsg}
         <button onMouseDown={auth.doLogin} >Login</button>
-        <button onMouseDown={auth.doDebug} >Debug</button>
         <Menu
           code={code}
           setContent={setContent}
