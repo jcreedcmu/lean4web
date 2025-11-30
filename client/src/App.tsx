@@ -31,7 +31,7 @@ function isBrowserDefaultDark() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-console.log(import.meta.env);
+console.debug(import.meta.env);
 const yjs_websocket_service = import.meta.env.VITE_YJS_WEBSOCKET_SERVICE;
 
 function App() {
@@ -55,7 +55,7 @@ function InnerApp() {
   const auth = useAuth();
 
   useEffect(() => {
-    console.log(`In App useEffect, trying to connect to yjs websocket service at ${yjs_websocket_service}...`);
+    console.debug(`In App useEffect, trying to connect to yjs websocket service at ${yjs_websocket_service}...`);
     const provider = new WebsocketProvider(yjs_websocket_service, 'myroom', ydoc)
     setProvider(provider)
     return () => {
@@ -64,18 +64,39 @@ function InnerApp() {
     }
   }, [ydoc])
 
+
   // this effect manages the lifetime of the editor binding
   useEffect(() => {
     if (provider == null || editor == null) {
       return
     }
-    console.log('reached editor binding with provider', provider)
+    console.debug('reached editor binding with:');
+    console.debug(`provider: ${provider}`);
     const binding = new MonacoBinding(ydoc.getText(), editor.getModel()!, new Set([editor]), provider?.awareness)
-    setBinding(binding)
-    return () => {
-      binding.destroy()
+    setBinding(binding);
+
+    function awarenessChangeHandler() {
+      console.debug('awareness state:');
+      binding.awareness.getStates().forEach((state, clientID) => {
+        console.log(clientID);
+        console.log(JSON.stringify(state));
+      });
+      console.debug('done');
     }
-  }, [ydoc, provider, editor])
+
+    console.debug(`auth.user: ${auth.user}`);
+    if (auth.user) {
+      console.debug('trying to set awareness field username to', auth.user.username);
+      binding.awareness.setLocalStateField('username', auth.user.username);
+    }
+
+    binding.awareness.on('change', awarenessChangeHandler);
+
+    return () => {
+      binding.awareness.off('change', awarenessChangeHandler);
+      binding.destroy();
+    }
+  }, [ydoc, provider, editor]);
 
   const { width } = useWindowDimensions()
 

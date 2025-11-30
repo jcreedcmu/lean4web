@@ -11,7 +11,12 @@ const main_url = `http://localhost:3000`; // FIXME: change for prod
 
 const authContext = createContext<AuthContext | null>(null);
 
-export function AuthProvider({ children }) {
+type AuthProviderProps = {
+  children: React.ReactNode,
+};
+
+export function AuthProvider({ children }: AuthProviderProps) {
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
